@@ -159,7 +159,11 @@ fun AlphabetScrubberCanvas(
                     val itemSlotHeight = usableHeight / itemCount
 
                     val touchRelative = initialY - verticalPadding
-                    val rawIndex = (touchRelative / itemSlotHeight).toInt().coerceIn(0, itemCount - 1)
+                    val rawIndex = if (itemSlotHeight > 0f) {
+                        kotlin.math.floor(touchRelative / itemSlotHeight).toInt().coerceIn(0, itemCount - 1)
+                    } else {
+                        0
+                    }
                     selectedIndex = rawIndex
 
                     val selectedChar = when (val item = ALPHABET_ITEMS[rawIndex]) {
@@ -182,7 +186,11 @@ fun AlphabetScrubberCanvas(
                         if (change.positionChange() != Offset.Zero) {
                             currentTouchY = change.position.y
                             val relY = currentTouchY - verticalPadding
-                            val newIndex = (relY / itemSlotHeight).toInt().coerceIn(0, itemCount - 1)
+                            val newIndex = if (itemSlotHeight > 0f) {
+                                kotlin.math.floor(relY / itemSlotHeight).toInt().coerceIn(0, itemCount - 1)
+                            } else {
+                                0
+                            }
 
                             if (newIndex != selectedIndex) {
                                 selectedIndex = newIndex
@@ -288,10 +296,9 @@ fun AlphabetScrubberCanvas(
 
                 val currentBubbleRadius = bubbleRadiusPx * bubbleScale
                 val bubbleCenterX = baseX - maxDisplacementPx * animValue - bubbleOffsetPx * animValue
-                val bubbleCenterY = activeBubbleY.coerceIn(
-                    verticalPadding + currentBubbleRadius,
-                    totalHeight - verticalPadding - currentBubbleRadius
-                )
+                val minBubbleY = verticalPadding + currentBubbleRadius
+                val maxBubbleY = (totalHeight - verticalPadding - currentBubbleRadius).coerceAtLeast(minBubbleY)
+                val bubbleCenterY = activeBubbleY.coerceIn(minBubbleY, maxBubbleY)
 
                 // Background circle
                 nativeCanvas.drawCircle(bubbleCenterX, bubbleCenterY, currentBubbleRadius, bubbleBgPaint)

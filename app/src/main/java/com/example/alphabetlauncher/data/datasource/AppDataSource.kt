@@ -52,6 +52,7 @@ class PackageManagerAppDataSource(
                 val pkgName = resolveInfo.activityInfo?.packageName
                 pkgName != null && pkgName != ownPackageName
             }
+            .distinctBy { "${it.activityInfo?.packageName}/${it.activityInfo?.name}" }
             .mapNotNull { resolveInfo ->
                 try {
                     val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null

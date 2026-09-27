@@ -9,8 +9,9 @@ sealed interface LauncherUiState {
     data object Loading : LauncherUiState
 
     data class Success(
-        val favorites: List<AppModel>,
-        val appsByLetter: Map<Char, List<AppModel>>,
+        val allApps: List<AppModel> = emptyList(),
+        val favorites: List<AppModel> = emptyList(),
+        val appsByLetter: Map<Char, List<AppModel>> = emptyMap(),
         val isDragging: Boolean = false,
         val selectedLetter: Char? = null,
         val filteredApps: List<AppModel> = emptyList()

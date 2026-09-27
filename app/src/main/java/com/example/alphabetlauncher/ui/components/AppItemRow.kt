@@ -1,8 +1,9 @@
 package com.example.alphabetlauncher.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,18 +26,24 @@ import com.example.alphabetlauncher.data.model.AppModel
 
 /**
  * Standard app item row displaying app icon and name.
+ * Supports both tap-to-launch and long-press for favorites context action.
  * Strictly uses sdp for sizing.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppItemRow(
     app: AppModel,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(vertical = 9.sdp),
         verticalAlignment = Alignment.CenterVertically
     ) {

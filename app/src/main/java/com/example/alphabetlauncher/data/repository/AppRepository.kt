@@ -1,46 +1,37 @@
 package com.example.alphabetlauncher.data.repository
 
 import com.example.alphabetlauncher.data.datasource.AppDataSource
+import com.example.alphabetlauncher.data.datasource.FavoritesPreferencesDataSource
 import com.example.alphabetlauncher.data.model.AppModel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
  * Repository interface for managing app discovery, in-memory caching,
- * alphabet categorization, and favorite app selection.
+ * alphabet categorization, and favorite app persistence.
  */
 interface AppRepository {
     suspend fun getInstalledApps(forceRefresh: Boolean = false): Result<List<AppModel>>
     suspend fun getAppsGroupedByLetter(forceRefresh: Boolean = false): Result<Map<Char, List<AppModel>>>
-    suspend fun getFavoriteApps(forceRefresh: Boolean = false): Result<List<AppModel>>
+    fun getFavoriteAppsFlow(): Flow<List<AppModel>>
+    suspend fun addFavorite(packageName: String)
+    suspend fun removeFavorite(packageName: String)
 }
 
 /**
  * Implementation of [AppRepository] with in-memory caching to guarantee
- * zero PackageManager queries on the touch/animation path.
+ * zero PackageManager queries on the touch/animation path, backed by DataStore for custom favorites.
  */
 class AppRepositoryImpl(
-    private val appDataSource: AppDataSource
+    private val appDataSource: AppDataSource,
+    private val favoritesPreferencesDataSource: FavoritesPreferencesDataSource
 ) : AppRepository {
 
     private val mutex = Mutex()
     private var cachedApps: List<AppModel>? = null
     private var cachedGroupedApps: Map<Char, List<AppModel>>? = null
-    private var cachedFavorites: List<AppModel>? = null
-
-    // Well-known popular packages to prefer when populating default favorites
-    private val preferredFavoritePackages = listOf(
-        "com.whatsapp",
-        "com.android.chrome",
-        "com.google.android.youtube",
-        "com.google.android.gm",
-        "com.google.android.apps.photos",
-        "com.google.android.calculator",
-        "com.google.android.dialer",
-        "com.android.camera",
-        "com.google.android.GoogleCamera",
-        "com.android.settings"
-    )
 
     private val targetFavoriteCount = 6
 
@@ -52,7 +43,6 @@ class AppRepositoryImpl(
                         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
                     cachedApps = apps
                     cachedGroupedApps = buildGroupedMap(apps)
-                    cachedFavorites = buildFavorites(apps)
                 }
                 cachedApps ?: emptyList()
             }
@@ -66,25 +56,50 @@ class AppRepositoryImpl(
                         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
                     cachedApps = apps
                     cachedGroupedApps = buildGroupedMap(apps)
-                    cachedFavorites = buildFavorites(apps)
                 }
                 cachedGroupedApps ?: emptyMap()
             }
         }
 
-    override suspend fun getFavoriteApps(forceRefresh: Boolean): Result<List<AppModel>> =
-        mutex.withLock {
-            runCatching {
-                if (cachedFavorites == null || forceRefresh) {
-                    val apps = appDataSource.loadInstalledApps()
-                        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
-                    cachedApps = apps
-                    cachedGroupedApps = buildGroupedMap(apps)
-                    cachedFavorites = buildFavorites(apps)
-                }
-                cachedFavorites ?: emptyList()
+    override fun getFavoriteAppsFlow(): Flow<List<AppModel>> {
+        return favoritesPreferencesDataSource.favoritePackagesFlow.map { favoritePackages ->
+            val allApps = cachedApps ?: appDataSource.loadInstalledApps().also {
+                cachedApps = it.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { app -> app.label })
+                cachedGroupedApps = buildGroupedMap(cachedApps!!)
             }
+
+            val appByPackage = allApps.associateBy { it.packageName }
+            val favorites = mutableListOf<AppModel>()
+
+            // 1. Map user-saved favorite packages
+            for (pkg in favoritePackages) {
+                val app = appByPackage[pkg]
+                if (app != null && !favorites.contains(app)) {
+                    favorites.add(app)
+                }
+            }
+
+            // 2. If favorites count is less than targetFavoriteCount on initial launch, backfill from allApps
+            if (favorites.size < targetFavoriteCount && allApps.isNotEmpty()) {
+                for (app in allApps) {
+                    if (!favorites.contains(app)) {
+                        favorites.add(app)
+                        if (favorites.size >= targetFavoriteCount) break
+                    }
+                }
+            }
+
+            favorites
         }
+    }
+
+    override suspend fun addFavorite(packageName: String) {
+        favoritesPreferencesDataSource.addFavorite(packageName)
+    }
+
+    override suspend fun removeFavorite(packageName: String) {
+        favoritesPreferencesDataSource.removeFavorite(packageName)
+    }
 
     private fun buildGroupedMap(apps: List<AppModel>): Map<Char, List<AppModel>> {
         val map = ('A'..'Z').associateWith { mutableListOf<AppModel>() }.toMutableMap()
@@ -104,33 +119,5 @@ class AppRepositoryImpl(
         }
 
         return map
-    }
-
-    private fun buildFavorites(allApps: List<AppModel>): List<AppModel> {
-        if (allApps.isEmpty()) return emptyList()
-
-        val appByPackage = allApps.associateBy { it.packageName }
-        val favorites = mutableListOf<AppModel>()
-
-        // 1. Pick preferred popular apps if installed
-        for (pkg in preferredFavoritePackages) {
-            val app = appByPackage[pkg]
-            if (app != null && !favorites.contains(app)) {
-                favorites.add(app)
-                if (favorites.size >= targetFavoriteCount) break
-            }
-        }
-
-        // 2. Fill remainder up to targetFavoriteCount from the remaining installed apps
-        if (favorites.size < targetFavoriteCount) {
-            for (app in allApps) {
-                if (!favorites.contains(app)) {
-                    favorites.add(app)
-                    if (favorites.size >= targetFavoriteCount) break
-                }
-            }
-        }
-
-        return favorites
     }
 }

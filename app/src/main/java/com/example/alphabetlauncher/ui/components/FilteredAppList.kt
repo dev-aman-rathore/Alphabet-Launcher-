@@ -23,12 +23,14 @@ import com.example.alphabetlauncher.data.model.AppModel
  * Filtered app list view displayed when the user is scrubbing the A-Z bar.
  * Displays the active letter header and the alphabetical list of matching apps,
  * or a clear empty state when no apps exist for the letter.
+ * Supports both click-to-launch and long-press for favorites context action.
  */
 @Composable
 fun FilteredAppList(
     letter: Char,
     apps: List<AppModel>,
     onAppClick: (AppModel) -> Unit,
+    onAppLongClick: (AppModel) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -63,11 +65,12 @@ fun FilteredAppList(
             ) {
                 items(
                     items = apps,
-                    key = { it.packageName }
+                    key = { "${it.packageName}/${it.activityName}" }
                 ) { app ->
                     AppItemRow(
                         app = app,
-                        onClick = { onAppClick(app) }
+                        onClick = { onAppClick(app) },
+                        onLongClick = { onAppLongClick(app) }
                     )
                 }
 
