@@ -12,7 +12,6 @@ A minimalist, high-performance Android custom launcher built with **Kotlin** and
   * Straight vertical A–Z column along the right edge with a star (`★`) at the top and a dot (`•`) at the bottom.
 * **Interactive Curved Scrubber:**
   * Single-canvas rendering ensuring steady 60 fps tracking with zero GC allocations during touches.
-  * Continuous mathematical curve (raised cosine / Hann window) that bulges toward the center of the screen pointing directly at the user's finger.
   * Enlarged circular letter bubble adjacent to the finger.
   * Dynamic app list displaying all installed apps starting with the selected letter, updated instantly during scrubbing.
   * Clear empty state (`"No apps"`) for letters with no installed applications.
@@ -24,6 +23,29 @@ A minimalist, high-performance Android custom launcher built with **Kotlin** and
   * Full Android 11+ (API 30+) compatibility using `QUERY_ALL_PACKAGES` and launcher intent categories (`CATEGORY_HOME`, `CATEGORY_DEFAULT`, `CATEGORY_LAUNCHER`).
 * **Universal SDP Sizing:**
   * Strict single-unit convention across all layouts and typography using `sdp` (no raw `dp`, `sp`, or `ssp`).
+
+---
+
+## 🌟 Bonus Features Implemented
+
+* **🔍 Swipe-Up Search:**
+  * Swiping up on the home screen smoothly slides up an animated full-screen search view with soft keyboard auto-focused.
+  * **Initial State:** Displays a `"Favorites"` section heading followed by all user favorite apps.
+  * **Active Typing:** Real-time case-insensitive filtering across all installed apps with a `"Results"` heading.
+  * **Empty State:** Shows a clear `"No apps found"` message when no apps match the search query.
+  * **Dismissal:** Dismissable by swiping down, tapping "Cancel", or pressing the system back button.
+
+* **⭐ Custom Favorites with Jetpack DataStore:**
+  * **Add to Favorites:** Long-press any app in the search results or A–Z drawer to open an "Add to Favorites" confirmation dialog.
+  * **Remove from Favorites:** Long-press any favorite app on the resting home screen or search overlay to open a "Remove from Favorites" confirmation dialog.
+  * **Persistence:** All custom favorite selections are asynchronously persisted using **Jetpack DataStore Preferences**, surviving app kills and device reboots.
+  * **Home Screen Cap:** Resting home screen dynamically displays up to 7 favorites to preserve the clean clock + list aesthetic, while the swipe-up overlay displays all favorites.
+
+* **🌀 Spring Physics Animation:**
+  * Bar release animation utilizes Compose `Animatable` configured with `Spring.DampingRatioMediumBouncy` and `Spring.StiffnessMedium`, providing a natural overshoot and settling effect.
+
+* **🌓 Adaptive Light & Dark Theme:**
+  * Fully supports system theme switching, rendering a deep black minimalist canvas in dark mode and clean high-contrast surfaces in light mode.
 
 ---
 
@@ -64,13 +86,14 @@ The project strictly follows **MVVM** and the **Repository Pattern** with clean 
       │
       ▼
 [AppRepository] (In-memory Cache & Mutex)
-      │
-      ▼
-[PackageManagerAppDataSource] (Android 11+ Package Queries)
+   ┌──┴──────────────────────────────┐
+   ▼                                 ▼
+[PackageManagerAppDataSource]  [FavoritesPreferencesDataSource]
+(Package Discovery)            (DataStore Persistence)
 ```
 
-* **UI Layer:** Composable functions (`HomeScreen`, `AlphabetScrubberCanvas`, `ClockDateView`, `FavoritesList`, `FilteredAppList`, `AppItemRow`) observing immutable `StateFlow` state.
-* **ViewModel:** `LauncherViewModel` exposes `LauncherUiState` (`Loading`, `Success`, `Error`) and live `ClockState`.
+* **UI Layer:** Composable functions (`HomeScreen`, `AlphabetScrubberCanvas`, `ClockDateView`, `FavoritesList`, `FilteredAppList`, `SearchOverlay`, `FavoriteActionDialog`, `AppItemRow`) observing immutable `StateFlow` state.
+* **ViewModel:** `LauncherViewModel` exposes `LauncherUiState` (`Loading`, `Success`, `Error`), live `ClockState`, search state, and dialog state.
 * **Repository:** `AppRepositoryImpl` caches apps, handles sorting and letter grouping, and provides thread-safe access via coroutines mutex.
 * **Dependency Injection:** Configured with **Koin** (`io.insert-koin:koin-android`, `koin-androidx-compose`).
 
@@ -85,7 +108,7 @@ The project strictly follows **MVVM** and the **Repository Pattern** with clean 
 | `androidx.compose.material3:material3` | BOM `2026.02.01` | Material 3 design foundation, color schemes, and surface components. |
 | `androidx.lifecycle:lifecycle-runtime-compose` | `2.11.0` | Lifecycle-aware StateFlow collection (`collectAsStateWithLifecycle`). |
 | `androidx.lifecycle:lifecycle-viewmodel-compose` | `2.11.0` | ViewModel lifecycle integration in Compose. |
-| `junit:junit` | `4.13.2` | Local JVM unit testing framework for domain and math logic. |
+| `androidx.datastore:datastore-preferences` | `1.1.3` | Asynchronous preference storage for persistent custom favorites. |
 
 *Note: The curved alphabet bar, physics falloff, and letter bubble are implemented entirely with native Compose `Canvas` with no external animation libraries.*
 
@@ -101,34 +124,17 @@ The project strictly follows **MVVM** and the **Repository Pattern** with clean 
 ### Build Steps
 1. Clone the repository:
    ```bash
-   git clone <repository_url>
+   git clone https://github.com/dev-aman-rathore/Alphabet-Launcher-.git
    cd AlphabetLauncher
    ```
 2. Build debug APK:
    ```bash
    ./gradlew assembleDebug
    ```
-3. Run unit tests:
-   ```bash
-   ./gradlew test
-   ```
-4. Install on device:
+3. Install on device:
    ```bash
    ./gradlew installDebug
    ```
-
----
-
-## 🧪 Unit Tests
-
-Local unit tests are located in `app/src/test/java/com/example/alphabetlauncher/`:
-* `AppRepositoryTest`: Verifies alphabetical sorting, letter grouping, fallback logic, and favorite app selection.
-* `ScrubberMathTest`: Verifies boundary clamping, touch-coordinate-to-letter index mapping, and raised cosine Hann window falloff values.
-
-Run tests using:
-```bash
-./gradlew testDebugUnitTest
-```
 
 ---
 
@@ -137,4 +143,3 @@ Run tests using:
 AI coding assistant (Google Antigravity) was utilized during development for:
 * Assisting in structuring the Koin dependency injection module and Gradle version catalog entries.
 * Formulating the raised cosine Hann window displacement equation for the vertical Canvas curve falloff.
-* Generating baseline unit tests for coordinate boundary clamping and repository grouping verification.
